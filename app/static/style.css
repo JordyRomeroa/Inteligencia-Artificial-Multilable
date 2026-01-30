@@ -452,3 +452,85 @@ button {
         max-width: 100%;
     }
 }
+/* Estilos para predicciones post-reentrenamiento */
+.retrain-results {
+    background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+    border: 2px solid #4CAF50;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.retrain-results h2 {
+    color: #2e7d32;
+    margin-bottom: 10px;
+    font-size: 1.5em;
+}
+
+.retrain-results > p {
+    color: #1b5e20;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.retrain-prediction-card {
+    background: white;
+    border-left: 4px solid #4CAF50;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.retrain-prediction-header {
+    font-weight: bold;
+    color: #2e7d32;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+}
+
+.retrain-classes-simple {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.retrain-classes-simple .class-badge {
+    display: inline-block;
+    padding: 12px 16px;
+    border-radius: 20px;
+    font-size: 1.1em;
+    font-weight: 600;
+    background-color: #4CAF50;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.retrain-classes-simple .no-predictions {
+    color: #999;
+    font-style: italic;
+}
+
+.retrain-classes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.retrain-classes .class-badge {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.95em;
+    font-weight: 500;
+}
+
+.retrain-classes .class-badge.success {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.retrain-classes .no-predictions {
+    color: #999;
+    font-style: italic;
+}

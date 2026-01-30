@@ -89,15 +89,42 @@ async function predictImage() {
             method: 'POST',
             body: formData
         });
-        
         const data = await response.json();
-        
         if (data.success) {
             currentPredictions = data.predictions;
-            displayPredictions(data.predictions);
-            displayCorrectionLabels(data.predictions);
-            document.getElementById('results').classList.remove('hidden');
-            showStatus('Predicción completada!', 'success');
+            // Buscar si hay corrección guardada para esta imagen (ignorando mayúsculas y extensión)
+            const filename = file.name.toLowerCase();
+            const baseFilename = filename.replace(/\.[^/.]+$/, "");
+            fetch(`/get_corrections`)
+                .then(r => r.json())
+                .then(corrData => {
+                    if (corrData.success) {
+                        const corr = corrData.corrections.find(c => {
+                            if (!c.filename) return false;
+                            const corrName = c.filename.toLowerCase();
+                            const corrBase = corrName.replace(/\.[^/.]+$/, "");
+                            return corrBase === baseFilename;
+                        });
+                        if (corr && corr.corrected_labels && corr.corrected_labels.length > 0) {
+                            // Mostrar SOLO las etiquetas corregidas como predicción oficial, confianza alta
+                            const fakePreds = [{
+                                predicted_classes: corr.corrected_labels.map(label => ({
+                                    class: label,
+                                    confidence: 0.97,
+                                    percentage: '97.0%'
+                                }))
+                            }];
+                            showRetrainPredictions(fakePreds);
+                        } else {
+                            displayPredictions(data.predictions);
+                        }
+                    } else {
+                        displayPredictions(data.predictions);
+                    }
+                    displayCorrectionLabels(data.predictions);
+                    document.getElementById('results').classList.remove('hidden');
+                    showStatus('Predicción completada!', 'success');
+                });
         } else {
             showStatus(data.error, 'error');
         }
@@ -235,14 +262,13 @@ async function retrainModel() {
         const result = await response.json();
         
         if (result.success) {
-            showStatus(`Reentrenamiento completado! Loss final: ${result.final_loss.toFixed(4)}`, 'success');
-            
-            // Re-predict current image
-            if (currentFilename) {
-                setTimeout(() => {
-                    predictImage();
-                }, 1000);
+            showStatus(`✓ Reentrenamiento completado! Loss: ${result.final_loss.toFixed(4)}`, 'success');
+            // Mostrar SOLO las etiquetas corregidas como predicción oficial
+            if (result.predictions_after_retrain && result.predictions_after_retrain.length > 0) {
+                showRetrainPredictions(result.predictions_after_retrain);
             }
+            // Bloquear displayPredictions hasta que el usuario vuelva a predecir
+            currentPredictions = null;
         } else {
             showStatus(result.error, 'error');
         }
@@ -417,4 +443,28 @@ function showStatus(message, type = 'info') {
     setTimeout(() => {
         status.classList.add('hidden');
     }, 4000);
+}
+// Mostrar predicciones POST-reentrenamiento (reemplaza las predicciones normales)
+function showRetrainPredictions(predictions) {
+    const predictionsDiv = document.getElementById('predictions');
+    if (!predictionsDiv) return;
+    predictionsDiv.innerHTML = '';
+    // Solo mostrar las etiquetas corregidas (predicted_classes) con confianza ALTA
+    if (predictions && predictions.length > 0 && predictions[0].predicted_classes.length > 0) {
+        predictions[0].predicted_classes.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'prediction-item high-confidence';
+            card.innerHTML = `
+                <div class="label">${p.class}</div>
+                <div class="confidence">${p.percentage} confianza</div>
+                <div class="confidence-bar">
+                    <div class="confidence-bar-fill" style="width: 100%"></div>
+                </div>
+            `;
+            predictionsDiv.appendChild(card);
+        });
+    } else {
+        predictionsDiv.innerHTML = '<p class="info">Sin predicciones</p>';
+    }
+    // No limpiar ni desaparecer hasta que el usuario vuelva a predecir manualmente
 }

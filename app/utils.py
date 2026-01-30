@@ -256,28 +256,33 @@ def calculate_metrics(y_true, y_pred, threshold=0.5):
     }
 
 
-def focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25):
+def focal_loss(y_true, y_pred, gamma=0.5, alpha=0.25):
     """
-    Focal Loss for addressing class imbalance.
+    Focal Loss SUAVIZADO para evitar predicciones todo-positivas.
+    Gamma reducido a 0.5 para menos énfasis en ejemplos difíciles.
     
     Args:
         y_true: True labels (batch_size, num_classes)
         y_pred: Predicted probabilities (batch_size, num_classes)
-        gamma: Focusing parameter (default 2.0)
+        gamma: Focusing parameter (REDUCIDO a 0.5 para estabilidad)
         alpha: Balancing parameter (default 0.25)
     
     Returns:
         Focal loss value
     """
-    epsilon = tf.keras.backend.epsilon()
-    y_pred = tf.clip_by_value(y_pred, epsilon, 1.0 - epsilon)
+    y_pred = tf.clip_by_value(y_pred, 1e-7, 1 - 1e-7)
     
-    # Calculate focal loss
-    cross_entropy = -y_true * tf.math.log(y_pred)
-    weight = alpha * y_true * tf.math.pow(1 - y_pred, gamma)
+    # BCE base
+    bce = -(y_true * tf.math.log(y_pred) + (1 - y_true) * tf.math.log(1 - y_pred))
     
-    focal_loss_value = weight * cross_entropy
-    return tf.reduce_mean(tf.reduce_sum(focal_loss_value, axis=-1))
+    # Modulación focal SUAVE (gamma bajo)
+    p_t = y_true * y_pred + (1 - y_true) * (1 - y_pred)
+    focal_weight = tf.pow(1 - p_t, gamma)
+    
+    # Aplicar peso focal
+    focal_bce = focal_weight * bce
+    
+    return tf.reduce_mean(focal_bce)
 
 
 def incremental_retrain(model, images, labels, epochs=15, learning_rate=1e-6, 
@@ -312,14 +317,15 @@ def incremental_retrain(model, images, labels, epochs=15, learning_rate=1e-6,
     for layer in model.layers[-6:]:
         layer.trainable = True
     
-    # Compile with focal loss and VERY low learning rate
+    # Compile with focal loss suavizado and adaptive learning rate
+    # Usar binary_crossentropy en vez de focal_loss para más estabilidad
     model.compile(
         optimizer=Adam(learning_rate=learning_rate),
-        loss=focal_loss,
+        loss='binary_crossentropy',  # Más estable que focal_loss para fine-tuning
         metrics=[
             tf.keras.metrics.BinaryAccuracy(name='accuracy'),
-            tf.keras.metrics.Precision(name='precision'),
-            tf.keras.metrics.Recall(name='recall')
+            tf.keras.metrics.Precision(name='precision', thresholds=0.5),
+            tf.keras.metrics.Recall(name='recall', thresholds=0.5)
         ]
     )
     
