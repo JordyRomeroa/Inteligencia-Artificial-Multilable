@@ -1,0 +1,43 @@
+{
+  "metrics": {
+    "hamming_loss": 0.9214666666666667,
+    "subset_accuracy": 0.0,
+    "f1_micro": 0.14562986772159722,
+    "f1_macro": 0.13653100079184588,
+    "precision_micro": 0.07853333333333333,
+    "recall_micro": 1.0
+  },
+  "config": {
+    "initial_epochs": 30,
+    "finetuning_epochs": 40,
+    "batch_size": 16,
+    "img_size": [
+      224,
+      224
+    ],
+    "learning_rate_initial": 0.0005,
+    "learning_rate_finetuning": 5e-05
+  },
+  "thresholds": [
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2
+  ]
+}

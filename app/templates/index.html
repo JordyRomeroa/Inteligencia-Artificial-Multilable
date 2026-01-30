@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador Multilabel Interactivo</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Clasificador Multilabel con Reentrenamiento</h1>
+            <p>Sube imágenes, corrige predicciones y mejora el modelo en tiempo real</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('single')">Imagen Individual</button>
+            <button class="tab-btn" onclick="showTab('batch')">Evaluación Batch</button>
+            <button class="tab-btn" onclick="showTab('corrections')">Correcciones</button>
+        </div>
+
+        <!-- Tab: Imagen Individual -->
+        <div id="single-tab" class="tab-content active">
+            <div class="upload-section">
+                <h2>1. Subir Imagen</h2>
+                <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
+                <div id="imagePreview" class="image-preview"></div>
+            </div>
+
+            <div class="controls">
+                <label for="threshold">Threshold: <span id="thresholdValue">0.50</span></label>
+                <input type="range" id="threshold" min="0.1" max="0.9" step="0.05" value="0.5" 
+                       oninput="updateThreshold(this.value)">
+                <button onclick="predictImage()" class="btn-primary">Predecir</button>
+            </div>
+
+            <div id="results" class="results hidden">
+                <h2>2. Predicciones del Modelo</h2>
+                <div id="predictions" class="predictions-grid"></div>
+                
+                <div class="correction-section">
+                    <h2>3. Corregir Etiquetas</h2>
+                    <p class="info">Selecciona las etiquetas correctas si el modelo se equivocó:</p>
+                    <div id="correctionLabels" class="labels-grid"></div>
+                    <button onclick="saveCorrection()" class="btn-success">Guardar Corrección</button>
+                    <button onclick="retrainModel()" class="btn-warning">Reentrenar Modelo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Evaluación Batch -->
+        <div id="batch-tab" class="tab-content">
+            <div class="upload-section">
+                <h2>Evaluar Múltiples Imágenes</h2>
+                <input type="file" id="batchInput" accept="image/*" multiple onchange="previewBatch(event)">
+                <button onclick="predictBatch()" class="btn-primary">Predecir Todo</button>
+            </div>
+
+            <div id="batchPreview" class="batch-preview"></div>
+            <div id="batchResults" class="batch-results"></div>
+        </div>
+
+        <!-- Tab: Correcciones -->
+        <div id="corrections-tab" class="tab-content">
+            <h2>Historial de Correcciones</h2>
+            <div id="correctionsList" class="corrections-list"></div>
+            <button onclick="loadCorrections()" class="btn-secondary">Actualizar</button>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <!-- Pass data from Flask to JavaScript -->
+    <script type="text/javascript">
+        // eslint-disable-next-line no-undef
+        window.classes = {{ classes | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

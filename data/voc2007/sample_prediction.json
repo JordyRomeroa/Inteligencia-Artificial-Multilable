@@ -1,0 +1,95 @@
+{
+  "predicted_labels": [
+    "person"
+  ],
+  "predictions": [
+    {
+      "class": "person",
+      "probability": 0.5021965503692627
+    }
+  ],
+  "all_predictions": [
+    {
+      "class": "person",
+      "probability": 0.5021965503692627
+    },
+    {
+      "class": "car",
+      "probability": 0.49749234318733215
+    },
+    {
+      "class": "chair",
+      "probability": 0.4967935383319855
+    },
+    {
+      "class": "sofa",
+      "probability": 0.4807024598121643
+    },
+    {
+      "class": "bird",
+      "probability": 0.4796466827392578
+    },
+    {
+      "class": "dog",
+      "probability": 0.4783100485801697
+    },
+    {
+      "class": "bottle",
+      "probability": 0.4726835787296295
+    },
+    {
+      "class": "cat",
+      "probability": 0.46883806586265564
+    },
+    {
+      "class": "pottedplant",
+      "probability": 0.46515193581581116
+    },
+    {
+      "class": "diningtable",
+      "probability": 0.46222054958343506
+    },
+    {
+      "class": "horse",
+      "probability": 0.4595763683319092
+    },
+    {
+      "class": "tvmonitor",
+      "probability": 0.4526669979095459
+    },
+    {
+      "class": "train",
+      "probability": 0.4440995752811432
+    },
+    {
+      "class": "motorbike",
+      "probability": 0.4411301910877228
+    },
+    {
+      "class": "bicycle",
+      "probability": 0.4403443932533264
+    },
+    {
+      "class": "aeroplane",
+      "probability": 0.4345756471157074
+    },
+    {
+      "class": "boat",
+      "probability": 0.41511595249176025
+    },
+    {
+      "class": "bus",
+      "probability": 0.41076597571372986
+    },
+    {
+      "class": "cow",
+      "probability": 0.388383150100708
+    },
+    {
+      "class": "sheep",
+      "probability": 0.3667469918727875
+    }
+  ],
+  "num_labels": 1,
+  "threshold": 0.5
+}
