@@ -1,108 +1,242 @@
-YOLO Object Detection - 3 Class Production Pipeline
+# YOLO Object Detection – 3-Class Production Pipeline
 
-Objective
-Production-ready YOLO object detection system with 3 classes (person, car, dog). Implements YOLOv8 architecture with MLflow tracking and inference API.
+## 📌 Overview
 
-Features
-- YOLO object detection on 3 specialized classes
-- YOLOv8n backbone architecture
-- Single-stage training with MLflow integration
-- Model Registry for version control
-- REST API for inference
-- Reproducible training (seed 42)
+This project implements a **production-ready object detection system** using **YOLOv8**, focused on detecting **three specific classes**:
 
-Technical Stack
-- Ultralytics YOLOv8
-- PyTorch
-- MLflow 2.0+ (SQLite backend)
-- Flask (inference API)
-- Python 3.9+
+- 🧍 Person  
+- 🚗 Car  
+- 🐶 Dog  
 
-Dataset
-- Format: YOLO bounding box format
-- Classes: 3 (person, car, dog)
-- Images: 416x416 RGB
-- Split: train/val/test
-- Total: 500 images
+The pipeline covers the **entire machine learning lifecycle**, from dataset validation and exploratory data analysis (EDA) to model training, experiment tracking with **MLflow**, and deployment through a **REST inference API**.
 
-Prerequisites
-- Python 3.9+
-- CUDA 11.8+ (optional, for GPU)
-- 8GB RAM
-- 10GB storage
+The system is designed with **reproducibility, scalability, and production-readiness** in mind.
 
-Installation
+---
+
+## 🎯 Objective
+
+Build a robust YOLO-based object detection pipeline that:
+
+- Detects 3 predefined object classes
+- Uses transfer learning from YOLOv8 pre-trained weights
+- Tracks experiments and models using MLflow
+- Exposes the trained model via a REST API
+- Ensures reproducibility across runs
+
+---
+
+## 🚀 Key Features
+
+- YOLOv8 object detection (Ultralytics)
+- 3-class specialization (person, car, dog)
+- Transfer learning from COCO-pretrained YOLOv8n
+- Integrated MLflow experiment tracking
+- Model Registry with production-ready versions
+- REST API for inference (Flask)
+- Deterministic training (fixed random seed)
+
+---
+
+## 🧠 Technical Stack
+
+- Ultralytics YOLOv8  
+- PyTorch  
+- MLflow 2.0+ (SQLite backend)  
+- Flask (Inference API)  
+- Python 3.9+  
+
+---
+
+## 📊 Dataset Description
+
+- **Format:** YOLO bounding box format (`.txt`)
+- **Classes:** 3 (`person`, `car`, `dog`)
+- **Image Size:** 416 × 416 (RGB)
+- **Total Images:** 500
+- **Split:**
+  - Train: 400 images (80%)
+  - Validation: 50 images (10%)
+  - Test: 50 images (10%)
+
+The dataset follows the standard YOLO directory structure.
+
+---
+
+## 🔍 Exploratory Data Analysis (EDA)
+
+Before training, the dataset is validated and analyzed to ensure data quality and consistency.
+
+### EDA includes:
+- Image–label alignment verification
+- Bounding box format and normalization checks
+- Class distribution analysis
+- Detection of missing or corrupted labels
+- Visualization of sample images with bounding boxes
+- Dataset balance validation
+
+This step ensures that training performance is not affected by data-related issues.
+
+---
+
+## 📓 Notebooks Explanation
+
+### `01_dataset_validation.ipynb`
+**Purpose:** Dataset sanity checks & EDA
+
+This notebook performs:
+- Dataset structure validation
+- YOLO label format verification
+- Bounding box normalization checks
+- Class frequency analysis
+- Visualization of labeled samples
+- Detection of empty or invalid annotations
+
+**Outcome:** A clean and verified dataset ready for training.
+
+---
+
+### `02_train_yolo.ipynb`
+**Purpose:** Model training & experiment tracking
+
+This notebook handles:
+- YOLOv8n model initialization
+- Transfer learning from COCO pre-trained weights
+- Training configuration (epochs, batch size, image size)
+- Automatic logging of metrics, parameters, and artifacts with MLflow
+- Model registration in the MLflow Model Registry
+
+**Outcome:** A trained and versioned object detection model.
+
+---
+
+### `03_inference.ipynb`
+**Purpose:** Model inference & qualitative evaluation
+
+This notebook:
+- Loads the trained YOLOv8 model
+- Runs inference on validation and test images
+- Applies confidence and IoU thresholds
+- Visualizes predictions vs ground truth
+- Evaluates real-world detection behavior
+
+**Outcome:** Validation of model performance before deployment.
+
+---
+
+##  Installation
+
+```bash
 pip install -r requirements.txt
+```
 
-Training Pipeline
+Requirements
 
-1. Data Preparation:
+    Python 3.9+
+
+    CUDA 11.8+ (optional, GPU acceleration)
+
+    8 GB RAM (minimum)
+
+    10 GB free storage
+
+ ## Training Pipeline
+
+    Prepare Dataset
+
 python prepare_dataset.py
 
-2. Dataset Validation:
+    Dataset Validation & EDA
+
 jupyter notebook notebooks/01_dataset_validation.ipynb
 
-3. Model Training:
+    Model Training
+
 jupyter notebook notebooks/02_train_yolo.ipynb
 
-4. Inference Testing:
+    Inference Testing
+
 jupyter notebook notebooks/03_inference.ipynb
 
-MLflow Tracking UI
+ MLflow Tracking
+
+Launch the MLflow UI:
+
 mlflow ui --backend-store-uri file:///mlruns
 
-Inference API
+## MLflow Setup
+
+    Backend: SQLite
+
+    Experiment: yolo_3class_detection
+
+    Registered Model: yolo_3class_detector
+
+    Stages: Staging → Production
+
+ Inference API
+
+Start the API:
+
 python app/inference_api.py
 
-Test API:
+API Endpoints
+Method	Endpoint	Description
+GET	/health	API health check
+GET	/model-info	Loaded model metadata
+POST	/predict	Image upload for object detection
+Test API
+
 python test_inference_api.py
 
-API Endpoints
-GET /health
-GET /model-info
-POST /predict (multipart image upload)
+## Model Information
 
-Model Information
-- Model: YOLOv8n
-- Classes: person, car, dog
-- Input Size: 416x416
-- Loss Function: YOLOv8 default (objectness + classification + localization)
-- Training Epochs: 50
-- Batch Size: 16
-- Learning Rate: auto (YOLOv8 default scheduler)
-- Reproducibility: SEED=42
+    Architecture: YOLOv8n
 
-Training Details
+    Input Size: 416 × 416
 
-Phase 1: Transfer Learning
-- Backbone: YOLOv8n pre-trained on COCO
-- Classes: 3 (person, car, dog)
-- Epochs: 50
-- Batch Size: 16
-- Device: Auto (GPU if available, CPU fallback)
-- Early Stopping: patience=10
+    Classes: person, car, dog
 
-Metrics
-- mAP50 (mean Average Precision at IoU=0.5)
-- mAP50-95 (mean Average Precision at IoU=0.5:0.95)
-- Precision
-- Recall
+    Epochs: 50
 
-Evaluation
-- Validation set: 50 images
-- Test set: 50 images
-- Confidence threshold: 0.5
-- IoU threshold: 0.45
+    Batch Size: 16
 
-File Structure
+    Loss Function: YOLOv8 default
+
+    Optimizer & LR: YOLOv8 auto scheduler
+
+    Random Seed: 42
+
+## Metrics
+
+    mAP@0.5
+
+    mAP@0.5:0.95
+
+    Precision
+
+    Recall
+
+## Evaluation Setup
+
+    Validation Set: 50 images
+
+    Test Set: 50 images
+
+    Confidence Threshold: 0.5
+
+    IoU Threshold: 0.45
+
+## Project Structure
+
 .
 ├── data/
-│   ├── data.yaml               (YOLO config: 3 classes)
+│   ├── data.yaml
 │   ├── images/
-│   │   ├── train/              (400 images)
-│   │   ├── val/                (50 images)
-│   │   └── test/               (50 images)
-│   └── labels/                 (YOLO txt format)
+│   │   ├── train/
+│   │   ├── val/
+│   │   └── test/
+│   └── labels/
 ├── notebooks/
 │   ├── 01_dataset_validation.ipynb
 │   ├── 02_train_yolo.ipynb
@@ -110,28 +244,41 @@ File Structure
 ├── models/
 │   └── yolo_run/
 │       └── weights/
-│           └── best.pt         (trained model)
+│           └── best.pt
 ├── app/
-│   └── inference_api.py        (Flask API)
+│   └── inference_api.py
 ├── prepare_dataset.py
 ├── test_inference_api.py
 └── README.md
 
-Reproducibility
-- Random Seed: 42 (NumPy, PyTorch, CUDA)
-- Dataset Split: 80/10/10 fixed
-- Model: YOLOv8n (deterministic)
-- Framework: Ultralytics YOLOv8
+##  Reproducibility
 
-MLflow Integration
-- Backend: SQLite (file://mlruns)
-- Experiment: yolo_3class_detection
-- Runs: training, validation, model_registration
-- Model Registry: yolo_3class_detector (Production stage)
+    Fixed random seed (SEED = 42)
 
-Production Deployment
-- API: Flask WSGI server
-- Port: 5000 (default)
-- Concurrent Requests: Limited by model inference time
-- Model Format: YOLO .pt (PyTorch)
-- Inference Time: ~50-100ms per image (GPU), ~200-500ms (CPU)
+    Deterministic dataset split (80/10/10)
+
+    YOLOv8 deterministic behavior
+
+    Full experiment tracking with MLflow
+
+##  Production Deployment Notes
+
+    API Framework: Flask (WSGI)
+
+    Default Port: 5000
+
+    Model Format: PyTorch .pt
+
+    Inference Time:
+
+        GPU: ~50–100 ms per image
+
+        CPU: ~200–500 ms per image
+
+##  Project Status
+
+✔ Dataset validated
+✔ Model trained and evaluated
+✔ Experiments tracked
+✔ Model registered
+✔ API deployed

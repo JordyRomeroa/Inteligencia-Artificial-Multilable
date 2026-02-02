@@ -1,7 +1,9 @@
-path: /data
+path: c:\Users\jordy\OneDrive\Desktop\iaaaa\iajordy2\notebooks\..\data
 train: images/train
 val: images/val
 test: images/test
-
 nc: 3
-names: ['person', 'car', 'dog']
+names:
+- person
+- car
+- dog
