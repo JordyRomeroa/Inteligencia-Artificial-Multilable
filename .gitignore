@@ -57,14 +57,17 @@ venv.bak/
 *.pth
 *.pt
 
-# Excepciones: mantener modelo final
+# Excepciones: mantener modelos finales
 !models/food_multilabel_final.h5
 !models/food_multilabel_final.keras
+!models/best_improved.pt
 
-# Datos y datasets
+# Datos y datasets (NO subir imágenes)
 data/UECFood256/
 data/raw/
 data/processed/
+data/images/
+data/labels/
 *.csv
 *.npy
 *.npz

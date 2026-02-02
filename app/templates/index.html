@@ -3,81 +3,400 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clasificador Multilabel Interactivo</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>YOLO Object Detection - Person, Car, Dog</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .upload-section {
+            text-align: center;
+            padding: 40px;
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .upload-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .image-box {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .image-box h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .image-box img {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .detections-info {
+            margin-top: 30px;
+            background: #f8f9ff;
+            padding: 25px;
+            border-radius: 15px;
+        }
+
+        .detection-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .detection-item .class-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #667eea;
+        }
+
+        .detection-item .confidence {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .detection-item .bbox {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #c62828;
+        }
+
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #2e7d32;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎯 Clasificador Multilabel con Reentrenamiento</h1>
-            <p>Sube imágenes, corrige predicciones y mejora el modelo en tiempo real</p>
+            <h1>🎯 YOLO Object Detection</h1>
+            <p>Detección de personas, autos y perros con YOLOv8n</p>
         </header>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('single')">Imagen Individual</button>
-            <button class="tab-btn" onclick="showTab('batch')">Evaluación Batch</button>
-            <button class="tab-btn" onclick="showTab('corrections')">Correcciones</button>
-        </div>
-
-        <!-- Tab: Imagen Individual -->
-        <div id="single-tab" class="tab-content active">
-            <div class="upload-section">
-                <h2>1. Subir Imagen</h2>
-                <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
-                <div id="imagePreview" class="image-preview"></div>
+        <div class="main-content">
+            <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+                <h2 style="margin-bottom: 15px;">📁 Subir Imagen</h2>
+                <p style="margin-bottom: 20px;">Arrastra una imagen aquí o haz clic para seleccionar</p>
+                <input type="file" id="fileInput" accept="image/*" onchange="handleFileSelect(event)">
+                <button class="upload-btn" type="button">Seleccionar Imagen</button>
             </div>
 
-            <div class="controls">
-                <label for="threshold">Threshold: <span id="thresholdValue">0.50</span></label>
-                <input type="range" id="threshold" min="0.1" max="0.9" step="0.05" value="0.5" 
-                       oninput="updateThreshold(this.value)">
-                <button onclick="predictImage()" class="btn-primary">Predecir</button>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 20px; color: #667eea; font-weight: bold;">Procesando imagen...</p>
             </div>
 
-            <div id="results" class="results hidden">
-                <h2>2. Predicciones del Modelo</h2>
-                <div id="predictions" class="predictions-grid"></div>
-                
-                <div class="correction-section">
-                    <h2>3. Corregir Etiquetas</h2>
-                    <p class="info">Selecciona las etiquetas correctas si el modelo se equivocó:</p>
-                    <div id="correctionLabels" class="labels-grid"></div>
-                    <button onclick="saveCorrection()" class="btn-success">Guardar Corrección</button>
-                    <button onclick="retrainModel()" class="btn-warning">Reentrenar Modelo</button>
+            <div id="error" class="error hidden"></div>
+            <div id="success" class="success hidden"></div>
+
+            <div id="results" class="hidden">
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="number" id="totalDetections">0</div>
+                        <div class="label">Detecciones</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="personCount">0</div>
+                        <div class="label">Personas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="carCount">0</div>
+                        <div class="label">Autos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="dogCount">0</div>
+                        <div class="label">Perros</div>
+                    </div>
+                </div>
+
+                <div class="preview-container">
+                    <div class="image-box">
+                        <h3>Imagen Original</h3>
+                        <img id="originalImage" alt="Original">
+                    </div>
+                    <div class="image-box">
+                        <h3>Detecciones</h3>
+                        <img id="annotatedImage" alt="Detecciones">
+                    </div>
+                </div>
+
+                <div class="detections-info">
+                    <h3 style="margin-bottom: 20px;">📋 Detecciones Detalladas</h3>
+                    <div id="detectionsList"></div>
                 </div>
             </div>
         </div>
-
-        <!-- Tab: Evaluación Batch -->
-        <div id="batch-tab" class="tab-content">
-            <div class="upload-section">
-                <h2>Evaluar Múltiples Imágenes</h2>
-                <input type="file" id="batchInput" accept="image/*" multiple onchange="previewBatch(event)">
-                <button onclick="predictBatch()" class="btn-primary">Predecir Todo</button>
-            </div>
-
-            <div id="batchPreview" class="batch-preview"></div>
-            <div id="batchResults" class="batch-results"></div>
-        </div>
-
-        <!-- Tab: Correcciones -->
-        <div id="corrections-tab" class="tab-content">
-            <h2>Historial de Correcciones</h2>
-            <div id="correctionsList" class="corrections-list"></div>
-            <button onclick="loadCorrections()" class="btn-secondary">Actualizar</button>
-        </div>
-
-        <!-- Status Messages -->
-        <div id="status" class="status hidden"></div>
     </div>
 
-    <!-- Pass data from Flask to JavaScript -->
-    <script type="text/javascript">
-        // eslint-disable-next-line no-undef
-        window.classes = {{ classes | tojson }};
+    <script>
+        let selectedFile = null;
+
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                showSuccess(`Imagen seleccionada: ${selectedFile.name}`);
+                predictImage();
+            }
+        }
+
+        async function predictImage() {
+            if (!selectedFile) {
+                showError('Por favor selecciona una imagen primero');
+                return;
+            }
+
+            hideMessages();
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('image', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error en la predicción');
+                }
+
+                displayResults(data);
+                showSuccess(`Predicción completada: ${data.num_detections} objetos detectados`);
+
+            } catch (error) {
+                showError(`Error: ${error.message}`);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            // Show results section
+            document.getElementById('results').classList.remove('hidden');
+
+            // Display original image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('originalImage').src = e.target.result;
+            };
+            reader.readAsDataURL(selectedFile);
+
+            // Display annotated image
+            document.getElementById('annotatedImage').src = data.annotated_image;
+
+            // Update stats
+            const classCounts = {person: 0, car: 0, dog: 0};
+            data.detections.forEach(det => {
+                if (classCounts.hasOwnProperty(det.class)) {
+                    classCounts[det.class]++;
+                }
+            });
+
+            document.getElementById('totalDetections').textContent = data.num_detections;
+            document.getElementById('personCount').textContent = classCounts.person;
+            document.getElementById('carCount').textContent = classCounts.car;
+            document.getElementById('dogCount').textContent = classCounts.dog;
+
+            // Display detections list
+            const detectionsList = document.getElementById('detectionsList');
+            detectionsList.innerHTML = '';
+
+            if (data.detections.length === 0) {
+                detectionsList.innerHTML = '<p style="text-align: center; color: #666;">No se detectaron objetos</p>';
+            } else {
+                data.detections.forEach((det, index) => {
+                    const detDiv = document.createElement('div');
+                    detDiv.className = 'detection-item';
+                    detDiv.innerHTML = `
+                        <span class="class-name">${index + 1}. ${det.class.toUpperCase()}</span>
+                        <span class="confidence"> - Confianza: ${(det.confidence * 100).toFixed(1)}%</span>
+                        <div class="bbox">
+                            BBox: [${det.bbox.x1}, ${det.bbox.y1}, ${det.bbox.x2}, ${det.bbox.y2}]
+                        </div>
+                    `;
+                    detectionsList.appendChild(detDiv);
+                });
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.classList.remove('hidden');
+        }
+
+        function hideMessages() {
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+        }
+
+        // Check API health on load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                if (!data.model_loaded) {
+                    showError('Advertencia: El modelo no está cargado. Entrena el modelo primero con notebook 03_training.ipynb');
+                }
+            } catch (error) {
+                showError('Error al conectar con la API');
+            }
+        });
     </script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
