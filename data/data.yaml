@@ -1,4 +1,4 @@
-path: c:\Users\jordy\OneDrive\Desktop\iaaaa\iajordy2\notebooks\..\data
+path: C:\Users\jordy\OneDrive\Desktop\iaaaa\iajordy2\data
 train: images/train
 val: images/val
 test: images/test

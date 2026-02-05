@@ -7,9 +7,27 @@ from flask_cors import CORS
 from PIL import Image
 import io
 import base64
+from datetime import datetime
+import json
 
 app = Flask(__name__)
 CORS(app)
+
+# ===== CONFIGURACIÓN DE GPU =====
+# Verificar disponibilidad de GPU
+if torch.cuda.is_available():
+    device = 'cuda'
+    gpu_name = torch.cuda.get_device_name(0)
+    print(f"✓ GPU DETECTADA: {gpu_name}")
+    print(f"  CUDA Version: {torch.version.cuda}")
+    print(f"  Dispositivos GPU: {torch.cuda.device_count()}")
+    # Optimizar uso de GPU
+    torch.backends.cudnn.benchmark = True
+else:
+    device = 'cpu'
+    print("⚠ GPU NO DETECTADA - usando CPU")
+    print("  Instala PyTorch con CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118")
+# ================================
 
 # Configure paths - try multiple locations for best.pt
 MODELS_DIR = Path(__file__).parent.parent / 'models'
@@ -29,13 +47,29 @@ for candidate in best_model_candidates:
         break
 
 model = None
+learner = None  # Global instance for continuous learning
 CLASS_NAMES = ['person', 'car', 'dog']
 
 def load_model():
-    global model
+    global model, learner
     if BEST_MODEL_PATH and BEST_MODEL_PATH.exists():
         model = YOLO(str(BEST_MODEL_PATH))
-        print(f"Model loaded from: {BEST_MODEL_PATH}")
+        # Mover modelo a GPU si está disponible
+        if device == 'cuda':
+            model.to(device)
+            print(f"✓ Modelo cargado en GPU: {BEST_MODEL_PATH}")
+        else:
+            print(f"Modelo cargado en CPU: {BEST_MODEL_PATH}")
+        
+        # Inicializar el learner global
+        try:
+            from continuous_learning import ContinuousLearner
+            learner = ContinuousLearner(str(BEST_MODEL_PATH))
+            print(f"✓ ContinuousLearner inicializado")
+        except Exception as e:
+            print(f"⚠ Error inicializando ContinuousLearner: {e}")
+            learner = None
+        
         return True
     else:
         print("ERROR: Model not found in any expected location")
@@ -56,7 +90,10 @@ def health():
     return jsonify({
         'status': 'healthy', 
         'model_loaded': model is not None,
-        'model_path': str(BEST_MODEL_PATH) if BEST_MODEL_PATH else None
+        'model_path': str(BEST_MODEL_PATH) if BEST_MODEL_PATH else None,
+        'device': device,
+        'cuda_available': torch.cuda.is_available(),
+        'gpu_name': torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A'
     }), 200
 
 @app.route('/predict', methods=['POST'])
@@ -75,12 +112,14 @@ def predict():
         # Run prediction with optimized parameters for multi-object detection
         # Aggressive settings to detect all 3 classes (person, car, dog)
         # dog is hardest to detect so we need lower thresholds
+        # IMPORTANTE: device especifica donde ejecutar (GPU si está disponible)
         results = model.predict(
             source=image, 
             conf=0.05,      # Very low - catches weak detections (especially dogs)
             iou=0.20,       # Very low NMS threshold - keeps overlapping detections
             max_det=200,    # Increased - allows many detections per image
             agnostic_nms=False,  # Keeps detections of different classes even if overlapped
+            device=device,  # USA GPU SI ESTÁ DISPONIBLE
             verbose=False
         )
         result = results[0]
@@ -119,7 +158,7 @@ def predict():
             'detections': detections,
             'num_detections': len(detections),
             'image_size': {'width': image.size[0], 'height': image.size[1]},
-            'annotated_image': f'data:image/jpeg;base64,{img_base64}'
+            'image_with_detections': img_base64
         }), 200
         
     except Exception as e:
@@ -132,18 +171,286 @@ def model_info():
         'classes': CLASS_NAMES,
         'num_classes': len(CLASS_NAMES),
         'model_loaded': model is not None,
-        'model_path': str(BEST_MODEL_PATH) if BEST_MODEL_PATH else 'not found'
+        'model_path': str(BEST_MODEL_PATH) if BEST_MODEL_PATH else 'not found',
+        'device': device,
+        'cuda_available': torch.cuda.is_available(),
+        'gpu_name': torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only'
     }), 200
+
+# ===== NEW ENDPOINTS FOR ADVANCED UI =====
+
+@app.route('/api/models/list', methods=['GET'])
+def list_models():
+    """List all available model versions"""
+    import json
+    from datetime import datetime
+    
+    models = []
+    
+    # Buscar todos los modelos disponibles
+    for model_path in MODELS_DIR.glob('*.pt'):
+        try:
+            metrics = {
+                'accuracy': 0.85,  # Placeholder
+                'precision': 0.82,
+                'recall': 0.88
+            }
+            
+            models.append({
+                'name': model_path.name,
+                'path': str(model_path),
+                'type': 'improved' if 'improved' in model_path.name else 'retrained' if 'retrained' in model_path.name else 'base',
+                'version': int(model_path.stem.split('_')[-1]) if '_' in model_path.stem else 1,
+                'is_current': str(model_path) == str(BEST_MODEL_PATH),
+                'metrics': metrics,
+                'size_mb': round(model_path.stat().st_size / 1024 / 1024, 2)
+            })
+        except:
+            pass
+    
+    models.sort(key=lambda x: x['version'], reverse=True)
+    
+    return jsonify({
+        'success': True,
+        'models': models,
+        'device': device
+    }), 200
+
+@app.route('/api/models/load', methods=['POST'])
+def load_model_endpoint():
+    """Load a specific model version"""
+    global model, BEST_MODEL_PATH
+    
+    try:
+        data = request.json
+        model_path = Path(data.get('model_path', ''))
+        
+        if not model_path.exists():
+            return jsonify({'success': False, 'error': 'Model not found'}), 404
+        
+        model = YOLO(str(model_path))
+        if device == 'cuda':
+            model.to(device)
+        
+        BEST_MODEL_PATH = model_path
+        
+        return jsonify({
+            'success': True,
+            'model': {
+                'path': str(model_path),
+                'version': int(model_path.stem.split('_')[-1]) if '_' in model_path.stem else 1,
+                'device': device,
+                'loaded_at': datetime.now().isoformat()
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/corrections/add', methods=['POST'])
+def add_correction():
+    """Add a correction for retraining"""
+    try:
+        if learner is None:
+            return jsonify({'success': False, 'error': 'Learner not initialized'}), 500
+        
+        image_file = request.files.get('image')
+        bbox = request.form.get('bbox')
+        tag = request.form.get('tag')
+        
+        if not all([image_file, bbox, tag]):
+            return jsonify({'success': False, 'error': 'Missing data'}), 400
+        
+        # Save temporary image
+        temp_dir = Path(__file__).parent.parent / 'data' / 'corrections' / 'temp'
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        import json
+        bbox_data = json.loads(bbox)
+        temp_image_path = temp_dir / f"correction_{datetime.now().timestamp()}{Path(image_file.filename).suffix}"
+        image_file.save(str(temp_image_path))
+        
+        boxes = [{
+            'class': tag,
+            'bbox': [bbox_data['x1'], bbox_data['y1'], bbox_data['x2'], bbox_data['y2']],
+            'confidence': 1.0  # User correction = 100% confidence
+        }]
+        
+        success = learner.add_corrected_sample(
+            str(temp_image_path),
+            boxes,
+            user_id='web_user'
+        )
+        
+        return jsonify({
+            'success': success,
+            'message': 'Correction saved successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/corrections/stats', methods=['GET'])
+def get_correction_stats():
+    """Get statistics about corrections"""
+    try:
+        if learner is None:
+            return jsonify({
+                'success': True,
+                'total': 0,
+                'ready_for_retrain': False,
+                'min_required': 5
+            }), 200
+        
+        stats = learner.get_stats()
+        
+        return jsonify({
+            'success': True,
+            'total': stats.get('pending_corrections', 0),
+            'ready_for_retrain': stats.get('pending_retraining', False),
+            'min_required': 5
+        }), 200
+    except:
+        return jsonify({
+            'success': True,
+            'total': 0,
+            'ready_for_retrain': False,
+            'min_required': 5
+        }), 200
+
+@app.route('/api/model/retrain', methods=['POST'])
+def retrain_model():
+    """Trigger model retraining with accumulated corrections"""
+    try:
+        data = request.json or {}
+        epochs = data.get('epochs', 5)
+        
+        if learner is None:
+            return jsonify({'success': False, 'error': 'Learner not initialized'}), 500
+        
+        print(f"\n[RETRAIN] Iniciando reentrenamiento con {epochs} epochs...")
+        print(f"[RETRAIN] Correcciones guardadas: {len(learner.corrected_samples)}")
+        
+        result = learner.retrain(epochs=epochs)
+        
+        print(f"[RETRAIN] Resultado: {result}")
+        
+        if result['success']:
+            print(f"[RETRAIN] Reentrenamiento exitoso! Cargando nuevo modelo...")
+            # Reload the new model
+            global model
+            model = YOLO(str(result['model_path']))
+            if device == 'cuda':
+                model.to(device)
+            
+            print(f"[RETRAIN] Nuevo modelo cargado: {result['model_path']}")
+            print(f"[RETRAIN] Modelo guardado en: {result['model_path']}")
+            
+            return jsonify({
+                'success': True,
+                'new_version': result['version'],
+                'model_path': result['model_path'],
+                'metrics': result.get('metrics', {}),
+                'message': f'Modelo reentrenado guardado en: models/retrained_v{result["version"]}.pt'
+            }), 200
+        else:
+            error_msg = result.get('error') or result.get('reason', 'Retraining failed')
+            print(f"[RETRAIN] Error: {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+            
+    except Exception as e:
+        error_msg = f"Retraining exception: {str(e)}"
+        print(f"[RETRAIN] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': error_msg}), 500
+
+@app.route('/api/models/available', methods=['GET'])
+def get_available_models():
+    """Get list of available models (base + retrained)"""
+    models = []
+    models_dir = BEST_MODEL_PATH.parent
+    
+    # Modelo base
+    models.append({
+        'name': 'best_improved.pt (Base)',
+        'path': str(BEST_MODEL_PATH),
+        'type': 'base',
+        'is_current': str(model.model.pt_path if hasattr(model, 'model') else BEST_MODEL_PATH) == str(BEST_MODEL_PATH)
+    })
+    
+    # Modelos reentrenados
+    if models_dir.exists():
+        for pt_file in sorted(models_dir.glob('retrained_v*.pt'), reverse=True):
+            version = pt_file.stem.replace('retrained_v', '')
+            models.append({
+                'name': f'retrained_v{version}',
+                'path': str(pt_file),
+                'type': 'retrained',
+                'is_current': False
+            })
+    
+    return jsonify({'models': models, 'current_path': str(model.model.pt_path if hasattr(model, 'model') else BEST_MODEL_PATH)}), 200
+
+@app.route('/api/models/switch', methods=['POST'])
+def switch_model():
+    """Switch to a different model"""
+    try:
+        data = request.json or {}
+        model_path = data.get('model_path')
+        
+        if not model_path:
+            return jsonify({'success': False, 'error': 'model_path required'}), 400
+        
+        model_file = Path(model_path)
+        if not model_file.exists():
+            return jsonify({'success': False, 'error': f'Model file not found: {model_path}'}), 404
+        
+        global model, learner
+        try:
+            model = YOLO(str(model_file))
+            if device == 'cuda':
+                model.to(device)
+            
+            # Reinitialize learner with new model
+            from continuous_learning import ContinuousLearner
+            learner = ContinuousLearner(str(model_file))
+            
+            print(f"[MODEL SWITCH] Switched to: {model_path}")
+            return jsonify({
+                'success': True,
+                'model_path': str(model_file),
+                'message': f'Modelo cambiado a: {model_file.name}'
+            }), 200
+        except Exception as e:
+            print(f"[MODEL SWITCH] Error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 400
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/advanced')
+def advanced():
+    """Serve the advanced UI"""
+    return render_template('correcciones.html')
 
 if __name__ == '__main__':
     print("=" * 60)
     print("YOLO Object Detection API")
+    print("=" * 60)
+    print(f"Dispositivo: {device.upper()}")
+    if device == 'cuda':
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Memoria GPU: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
     print("=" * 60)
     
     if load_model():
         print(f"\nModel loaded successfully!")
         print(f"Path: {BEST_MODEL_PATH}")
         print(f"Classes: {CLASS_NAMES}")
+        print(f"Running on: {device.upper()}")
         print(f"\nAPI Endpoints:")
         print(f"  GET  /           - Web interface")
         print(f"  GET  /health     - Check API health")

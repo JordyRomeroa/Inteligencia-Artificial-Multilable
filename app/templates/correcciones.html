@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO - Correcciones y Reentrenamiento</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            color: #666;
+        }
+
+        .tab-button:hover {
+            background: #efefef;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Prediccion Tab */
+        .prediction-section {
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+        }
+
+        .upload-area:hover {
+            background: #f0f0ff;
+            border-color: #764ba2;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .prediction-results {
+            margin-top: 30px;
+        }
+
+        .image-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .image-column {
+            text-align: center;
+        }
+
+        .image-column h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .prediction-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .detections-list {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        .detection-item {
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detection-label {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .detection-confidence {
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 4px;
+        }
+
+        /* Correcciones Tab */
+        .correction-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .correction-upload {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+            text-align: center;
+        }
+
+        .correction-upload:hover {
+            background: #f0f0ff;
+            border-color: #764ba2;
+        }
+
+        .correction-canvas-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        #correctionCanvas {
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            cursor: crosshair;
+            max-width: 100%;
+            height: auto;
+            background: #f9f9f9;
+        }
+
+        .coordinates-display {
+            background: #f0f0ff;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.95em;
+            text-align: left;
+        }
+
+        .tag-selection {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .tag-button {
+            padding: 10px 20px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .tag-button:hover {
+            border-color: #667eea;
+        }
+
+        .tag-button.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #764ba2;
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .stats-box {
+            background: #f0f0ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stats-title {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stat-label {
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        @media (max-width: 1024px) {
+            .image-pair, .correction-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>YOLO - Mejora Continua</h1>
+            <p>Correcciones y Reentrenamiento del Modelo</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('prediction')">Prediccion</button>
+            <button class="tab-button" onclick="switchTab('corrections')">Correcciones</button>
+        </div>
+
+        <div class="content">
+            <!-- Tab: Prediccion -->
+            <div id="prediction" class="tab-content active">
+                <div class="prediction-section">
+                    <h2>Cargar Imagen para Prediccion</h2>
+                    
+                    <!-- Model Selector -->
+                    <div style="margin-bottom: 25px; text-align: left; background: #f0f0ff; padding: 15px; border-radius: 8px;">
+                        <label for="modelSelect" style="font-weight: bold; color: #667eea; display: block; margin-bottom: 8px;">Seleccionar Modelo:</label>
+                        <select id="modelSelect" onchange="switchModel()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 1em;">
+                            <option value="">Cargando modelos...</option>
+                        </select>
+                        <p id="modelStatus" style="color: #666; font-size: 0.9em; margin-top: 8px;"></p>
+                    </div>
+                    
+                    <div class="upload-area" onclick="document.getElementById('predictFile').click();">
+                        <p style="font-size: 1.2em; margin-bottom: 10px;">Arrastra imagen aqui o haz clic</p>
+                        <p style="color: #999;">Formatos: JPG, PNG, JPEG</p>
+                    </div>
+                    <input type="file" id="predictFile" accept="image/*" onchange="predictImage();">
+
+                    <div id="predictionResults" class="prediction-results" style="display: none;">
+                        <div class="image-pair">
+                            <div class="image-column">
+                                <h3>Imagen Original</h3>
+                                <img id="originalImage" class="prediction-image" src="" alt="Original">
+                            </div>
+                            <div class="image-column">
+                                <h3>Imagen Procesada</h3>
+                                <img id="processedImage" class="prediction-image" src="" alt="Procesada">
+                            </div>
+                        </div>
+                        
+                        <div class="detections-list" id="detectionsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Correcciones -->
+            <div id="corrections" class="tab-content">
+                <h2>Correcciones y Reentrenamiento</h2>
+                <div class="correction-section">
+                    <!-- Izquierda: Upload -->
+                    <div>
+                        <h3>1. Cargar Imagen para Corregir</h3>
+                        <div class="correction-upload" onclick="document.getElementById('correctionFile').click();">
+                            <p style="font-size: 1.2em; margin-bottom: 10px;">Arrastra imagen aqui o haz clic</p>
+                            <p style="color: #999;">Imagen a corregir</p>
+                        </div>
+                        <input type="file" id="correctionFile" accept="image/*" onchange="loadCorrectionImage();">
+                    </div>
+
+                    <!-- Derecha: Canvas y seleccion -->
+                    <div>
+                        <h3>2. Dibuja el Bounding Box y Selecciona Etiqueta</h3>
+                        <div class="correction-canvas-container">
+                            <canvas id="correctionCanvas" style="display: none;"></canvas>
+                            <div class="coordinates-display">
+                                <div>Coordenadas: <span id="coordsDisplay">-</span></div>
+                                <div>Ancho x Alto: <span id="sizeDisplay">-</span></div>
+                            </div>
+
+                            <div class="tag-selection">
+                                <button class="tag-button" onclick="selectTag('person');">Person</button>
+                                <button class="tag-button" onclick="selectTag('car');">Car</button>
+                                <button class="tag-button" onclick="selectTag('dog');">Dog</button>
+                            </div>
+
+                            <div class="action-buttons">
+                                <button class="btn btn-secondary" onclick="clearCanvas();">Limpiar</button>
+                                <button class="btn btn-primary" id="saveBtn" onclick="submitCorrection();" disabled>Guardar Correccion</button>
+                            </div>
+                        </div>
+
+                        <div id="correctionMessage" class="message"></div>
+                    </div>
+                </div>
+
+                <!-- Stats y Reentrenamiento -->
+                <div class="stats-box">
+                    <div class="stats-title">Estado de Correcciones</div>
+                    <div class="stat-row">
+                        <span class="stat-label">Total guardadas:</span>
+                        <span class="stat-value" id="totalCorrections">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Listas para reentrenar:</span>
+                        <span class="stat-value" id="retrainStatus">No (min. 10)</span>
+                    </div>
+                    <button class="btn btn-success" id="retrainBtn" onclick="submitRetrain();" style="display: none; width: 100%; margin-top: 15px;">
+                        Iniciar Reentrenamiento
+                    </button>
+                    <div id="retrainMessage" class="message"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentImage = null;
+        let selectedTag = null;
+        let startX, startY;
+        let isDrawing = false;
+        let bboxData = null;
+
+        // Prediccion Tab Functions
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            if (tabName === 'corrections') {
+                loadStats();
+            }
+        }
+
+        function predictImage() {
+            const file = document.getElementById('predictFile').files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Mostrar imagen original
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        document.getElementById('originalImage').src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+
+                    // Mostrar imagen procesada
+                    if (data.image_with_detections) {
+                        document.getElementById('processedImage').src = 'data:image/jpeg;base64,' + data.image_with_detections;
+                    }
+
+                    // Mostrar detecciones
+                    let detectionsList = '';
+                    if (data.detections && data.detections.length > 0) {
+                        detectionsList = data.detections.map((det, idx) => `
+                            <div class="detection-item">
+                                <div class="detection-label">${det.class}</div>
+                                <div class="detection-confidence">Confianza: ${(det.confidence * 100).toFixed(2)}%</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        detectionsList = '<p style="color: #999; text-align: center;">No se detectaron objetos</p>';
+                    }
+
+                    document.getElementById('detectionsList').innerHTML = detectionsList;
+                    document.getElementById('predictionResults').style.display = 'block';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Correcciones Tab Functions
+        function loadCorrectionImage() {
+            const file = document.getElementById('correctionFile').files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentImage = img;
+                    const canvas = document.getElementById('correctionCanvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    canvas.style.display = 'block';
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    
+                    startX = startY = undefined;
+                    bboxData = null;
+                    checkFormCompletion();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        const canvas = document.getElementById('correctionCanvas');
+        const ctx = canvas ? canvas.getContext('2d') : null;
+
+        if (canvas) {
+            canvas.addEventListener('mousedown', (e) => {
+                if (!currentImage) return;
+                isDrawing = true;
+                const rect = canvas.getBoundingClientRect();
+                startX = (e.clientX - rect.left) * (canvas.width / rect.width);
+                startY = (e.clientY - rect.top) * (canvas.height / rect.height);
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDrawing || !currentImage) return;
+                const rect = canvas.getBoundingClientRect();
+                const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+                ctx.drawImage(currentImage, 0, 0);
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+
+                // Mostrar coordenadas
+                const width = Math.abs(currentX - startX);
+                const height = Math.abs(currentY - startY);
+                document.getElementById('coordsDisplay').textContent = 
+                    `[${Math.round(startX)}, ${Math.round(startY)}] a [${Math.round(currentX)}, ${Math.round(currentY)}]`;
+                document.getElementById('sizeDisplay').textContent = 
+                    `${Math.round(width)} x ${Math.round(height)}`;
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if (!isDrawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const endX = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const endY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+                // Guardar bbox normalizado (0-1)
+                const x1 = Math.min(startX, endX) / canvas.width;
+                const y1 = Math.min(startY, endY) / canvas.height;
+                const x2 = Math.max(startX, endX) / canvas.width;
+                const y2 = Math.max(startY, endY) / canvas.height;
+
+                bboxData = { x1, y1, x2, y2 };
+                isDrawing = false;
+                checkFormCompletion();
+            });
+        }
+
+        function selectTag(tag) {
+            selectedTag = tag;
+            document.querySelectorAll('.tag-button').forEach(btn => btn.classList.remove('selected'));
+            event.target.classList.add('selected');
+            checkFormCompletion();
+        }
+
+        function checkFormCompletion() {
+            const hasImage = currentImage !== null;
+            const hasTag = selectedTag !== null;
+            const hasBox = bboxData && (bboxData.x2 - bboxData.x1) * (bboxData.y2 - bboxData.y1) > 0;
+
+            document.getElementById('saveBtn').disabled = !(hasImage && hasTag && hasBox);
+        }
+
+        function clearCanvas() {
+            if (currentImage) {
+                ctx.drawImage(currentImage, 0, 0);
+                document.getElementById('coordsDisplay').textContent = '-';
+                document.getElementById('sizeDisplay').textContent = '-';
+                startX = startY = undefined;
+                bboxData = null;
+                checkFormCompletion();
+            }
+        }
+
+        function submitCorrection() {
+            const file = document.getElementById('correctionFile').files[0];
+            
+            if (!file || !bboxData || !selectedTag) {
+                showMessage('correctionMessage', 'Faltan datos para guardar', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('bbox', JSON.stringify(bboxData));
+            formData.append('tag', selectedTag);
+
+            document.getElementById('saveBtn').disabled = true;
+            showMessage('correctionMessage', 'Guardando correccion...', 'info');
+
+            fetch('/api/corrections/add', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('correctionMessage', 'Correccion guardada exitosamente', 'success');
+                    setTimeout(() => {
+                        document.getElementById('correctionFile').value = '';
+                        document.getElementById('correctionCanvas').style.display = 'none';
+                        selectedTag = null;
+                        startX = startY = undefined;
+                        bboxData = null;
+                        currentImage = null;
+                        document.querySelectorAll('.tag-button').forEach(btn => btn.classList.remove('selected'));
+                        loadStats();
+                    }, 1500);
+                } else {
+                    showMessage('correctionMessage', 'Error: ' + data.error, 'error');
+                    document.getElementById('saveBtn').disabled = false;
+                }
+            })
+            .catch(error => {
+                showMessage('correctionMessage', 'Error al guardar: ' + error.message, 'error');
+                document.getElementById('saveBtn').disabled = false;
+            });
+        }
+
+        function loadStats() {
+            fetch('/api/corrections/stats')
+            .then(response => response.json())
+            .then(data => {
+                const total = data.total || 0;
+                document.getElementById('totalCorrections').textContent = total;
+                
+                const ready = total >= 5;
+                document.getElementById('retrainStatus').textContent = ready ? 'Si (listo para reentrenar)' : `No (min. 5) - Tienes ${total}`;
+                
+                const retrainBtn = document.getElementById('retrainBtn');
+                if (ready) {
+                    retrainBtn.style.display = 'block';
+                } else {
+                    retrainBtn.style.display = 'none';
+                }
+            })
+            .catch(error => console.error('Error loading stats:', error));
+        }
+
+        function submitRetrain() {
+            if (!confirm('Esto reentenrara el modelo con las correcciones guardadas. Puede tomar 5-10 minutos. Observa los logs en la consola.')) {
+                return;
+            }
+
+            const msgEl = document.getElementById('retrainMessage');
+            msgEl.innerHTML = '<div style="text-align: center;\"><div style=\"display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #27ae60; border-radius: 50%; animation: spin 1s linear infinite;\"></div><div style=\"margin-top: 10px;\">Entrenando modelo... esto puede tomar 5-10 minutos</div></div>';
+            msgEl.className = 'message show info';
+            
+            document.getElementById('retrainBtn').disabled = true;
+
+            fetch('/api/model/retrain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epochs: 5 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    msgEl.innerHTML = `<div>
+                        <strong>¡Reentrenamiento completado exitosamente!</strong><br>
+                        <p>El modelo ha sido actualizado y mejorado con tus correcciones.</p>
+                        <p style="font-family: monospace; background: #f0f0ff; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                            📁 ${data.message}
+                        </p>
+                        <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                            El nuevo modelo está disponible en el selector de la pestaña Predicción
+                        </p>
+                    </div>`;
+                    msgEl.className = 'message show success';
+                    
+                    // Recargar lista de modelos
+                    setTimeout(() => {
+                        loadModels();
+                        loadStats();
+                    }, 1000);
+                } else {
+                    msgEl.textContent = 'Error: ' + data.error;
+                    msgEl.className = 'message show error';
+                }
+                document.getElementById('retrainBtn').disabled = false;
+            })
+            .catch(error => {
+                msgEl.textContent = 'Error: ' + error.message;
+                msgEl.className = 'message show error';
+                document.getElementById('retrainBtn').disabled = false;
+            });
+        }
+        
+        function loadModels() {
+            fetch('/api/models/available')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('modelSelect');
+                const statusEl = document.getElementById('modelStatus');
+                
+                if (!select) return;
+                
+                select.innerHTML = '';
+                
+                if (data.models && data.models.length > 0) {
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.path;
+                        option.textContent = model.name;
+                        if (model.is_current) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                    
+                    // Encontrar modelo actual
+                    const currentModel = data.models.find(m => m.is_current);
+                    if (currentModel) {
+                        statusEl.textContent = `Modelo activo: ${currentModel.name}`;
+                    }
+                } else {
+                    select.innerHTML = '<option>Solo modelo base disponible</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading models:', error);
+                const select = document.getElementById('modelSelect');
+                if (select) {
+                    select.innerHTML = '<option>Error al cargar modelos</option>';
+                }
+            });
+        }
+        
+        function switchModel() {
+            const select = document.getElementById('modelSelect');
+            const modelPath = select.value;
+            
+            if (!modelPath) return;
+            
+            const statusEl = document.getElementById('modelStatus');
+            statusEl.textContent = 'Cambiando modelo...';
+            
+            fetch('/api/models/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_path: modelPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusEl.textContent = `✓ ${data.message}`;
+                    statusEl.style.color = '#27ae60';
+                } else {
+                    statusEl.textContent = `Error: ${data.error}`;
+                    statusEl.style.color = '#c0392b';
+                }
+            })
+            .catch(error => {
+                statusEl.textContent = `Error: ${error.message}`;
+                statusEl.style.color = '#c0392b';
+            });
+        }
+        
+        function showMessage(elementId, text, type) {
+            const msgEl = document.getElementById(elementId);
+            msgEl.textContent = text;
+            msgEl.className = 'message show ' + type;
+        }
+
+        // Cargar modelos y stats al cargar la página
+        document.addEventListener('DOMContentLoaded', () => {
+            loadModels();
+            loadStats();
+        });
+    </script>
+</body>
+</html>

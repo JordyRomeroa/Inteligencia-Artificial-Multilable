@@ -1,5 +1,6 @@
 """
 API Flask para predicción multilabel con sistema de correcciones y reentrenamiento.
+Optimizado para GPU con TensorFlow 2.15.0
 """
 import os
 import json
@@ -11,6 +12,21 @@ import tensorflow as tf
 from tensorflow import keras
 from PIL import Image
 import pickle
+
+# ===== CONFIGURACIÓN DE GPU =====
+# Detectar y configurar GPU automáticamente
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        print(f"✓ GPU detectada: {len(gpus)} dispositivo(s)")
+        print(f"  {[gpu.name for gpu in gpus]}")
+    except RuntimeError as e:
+        print(f"Error configurando GPU: {e}")
+else:
+    print("⚠ No se detectó GPU. Usando CPU")
+# ================================
 
 # Configurar rutas
 BASE_DIR = Path(__file__).parent
