@@ -1,0 +1,12 @@
+{
+  "version_type": "retraining",
+  "timestamp": "2026-02-05T23:27:32.165502",
+  "model_path": "C:\\Users\\jordy\\OneDrive\\Desktop\\iaaaa\\iajordy2\\models\\retrained_v21.pt",
+  "model_directory": "models/",
+  "run_id": "6d00d13ad9d748bbb73a121f8b84d8bc",
+  "version": "v21",
+  "model_type": "yolov8n",
+  "training_type": "continuous_learning",
+  "base_model": "C:\\Users\\jordy\\OneDrive\\Desktop\\iaaaa\\iajordy2\\models\\best_improved.pt",
+  "num_corrections": 5
+}

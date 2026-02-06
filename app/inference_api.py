@@ -319,50 +319,92 @@ def get_correction_stats():
 
 @app.route('/api/model/retrain', methods=['POST'])
 def retrain_model():
-    """Trigger model retraining with accumulated corrections"""
+    """
+    Trigger model retraining with accumulated corrections - FLUJO MLFLOW OBLIGATORIO.
+    
+    ⚠️ REENTRENAMIENTO CON MLFLOW CORRECTO:
+       - Usar experiment_id: 401576597529460193
+       - Usar artifact_location correcto
+       - Guardar dataset como artifacts
+       - Registrar métricas PRE/POST
+       - Agregar tag "retraining"
+    
+    Payload JSON:
+    {
+        "epochs": 5,
+        "batch_size": 16,
+        "experiment_id": "401576597529460193"  # OBLIGATORIO
+    }
+    """
     try:
         data = request.json or {}
         epochs = data.get('epochs', 5)
+        batch_size = data.get('batch_size', 16)
+        # REQUERIMIENTO OBLIGATORIO: experiment_id debe ser 401576597529460193
+        experiment_id = data.get('experiment_id', '401576597529460193')
         
         if learner is None:
             return jsonify({'success': False, 'error': 'Learner not initialized'}), 500
         
-        print(f"\n[RETRAIN] Iniciando reentrenamiento con {epochs} epochs...")
-        print(f"[RETRAIN] Correcciones guardadas: {len(learner.corrected_samples)}")
+        print(f"\n" + "="*80)
+        print(f"[API] SOLICITUD DE REENTRENAMIENTO RECIBIDA")
+        print(f"[API] Experiment ID: {experiment_id}")
+        print(f"[API] Epochs: {epochs}")
+        print(f"[API] Batch Size: {batch_size}")
+        print(f"[API] Correcciones guardadas: {len(learner.corrected_samples)}")
+        print(f"="*80)
         
-        result = learner.retrain(epochs=epochs)
+        if len(learner.corrected_samples) < 5:
+            return jsonify({
+                'success': False,
+                'error': f'Insuficientes correcciones ({len(learner.corrected_samples)} < 5)',
+                'corrections_needed': 5 - len(learner.corrected_samples)
+            }), 400
         
-        print(f"[RETRAIN] Resultado: {result}")
+        # LLAMAR CON EXPERIMENT_ID OBLIGATORIO
+        result = learner.retrain(
+            epochs=epochs,
+            batch_size=batch_size,
+            patience=5,
+            experiment_id=experiment_id
+        )
+        
+        print(f"[API] Resultado de reentrenamiento: {result}")
         
         if result['success']:
-            print(f"[RETRAIN] Reentrenamiento exitoso! Cargando nuevo modelo...")
+            print(f"[API] ✓ Reentrenamiento exitoso!")
+            print(f"[API] Cargando nuevo modelo...")
+            
             # Reload the new model
             global model
             model = YOLO(str(result['model_path']))
             if device == 'cuda':
                 model.to(device)
             
-            print(f"[RETRAIN] Nuevo modelo cargado: {result['model_path']}")
-            print(f"[RETRAIN] Modelo guardado en: {result['model_path']}")
+            print(f"[API] ✓ Nuevo modelo cargado: {result['model_path']}")
             
             return jsonify({
                 'success': True,
                 'new_version': result['version'],
                 'model_path': result['model_path'],
                 'metrics': result.get('metrics', {}),
-                'message': f'Modelo reentrenado guardado en: models/retrained_v{result["version"]}.pt'
+                'mlflow_run_id': result.get('mlflow_run_id'),
+                'experiment_id': experiment_id,
+                'message': f'✓ Modelo reentrenado guardado en: models/retrained_v{result["version"]}.pt',
+                'mlflow_message': f'✓ MLflow run registrado en experiment {experiment_id}'
             }), 200
         else:
             error_msg = result.get('error') or result.get('reason', 'Retraining failed')
-            print(f"[RETRAIN] Error: {error_msg}")
+            print(f"[API] ❌ Error: {error_msg}")
             return jsonify({
                 'success': False,
-                'error': error_msg
+                'error': error_msg,
+                'reason': result.get('reason')
             }), 400
             
     except Exception as e:
         error_msg = f"Retraining exception: {str(e)}"
-        print(f"[RETRAIN] {error_msg}")
+        print(f"[API] ❌ EXCEPCIÓN: {error_msg}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': error_msg}), 500
@@ -371,14 +413,23 @@ def retrain_model():
 def get_available_models():
     """Get list of available models (base + retrained)"""
     models = []
+    if BEST_MODEL_PATH is None or not BEST_MODEL_PATH.exists():
+        return jsonify({
+            'models': [],
+            'current_path': None,
+            'error': 'Model not loaded'
+        }), 200
+
     models_dir = BEST_MODEL_PATH.parent
     
     # Modelo base
+    current_path = str(model.model.pt_path) if (model is not None and hasattr(model, 'model')) else str(BEST_MODEL_PATH)
+
     models.append({
         'name': 'best_improved.pt (Base)',
         'path': str(BEST_MODEL_PATH),
         'type': 'base',
-        'is_current': str(model.model.pt_path if hasattr(model, 'model') else BEST_MODEL_PATH) == str(BEST_MODEL_PATH)
+        'is_current': current_path == str(BEST_MODEL_PATH)
     })
     
     # Modelos reentrenados
@@ -392,7 +443,7 @@ def get_available_models():
                 'is_current': False
             })
     
-    return jsonify({'models': models, 'current_path': str(model.model.pt_path if hasattr(model, 'model') else BEST_MODEL_PATH)}), 200
+    return jsonify({'models': models, 'current_path': current_path}), 200
 
 @app.route('/api/models/switch', methods=['POST'])
 def switch_model():

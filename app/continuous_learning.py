@@ -266,39 +266,57 @@ class ContinuousLearner:
         self,
         epochs: int = 10,
         batch_size: int = 16,
-        patience: int = 5
+        patience: int = 5,
+        experiment_id: str = '401576597529460193'
     ) -> Dict:
         """
-        Reentrenar el modelo con correcciones acumuladas.
+        Reentrenar el modelo con correcciones acumuladas - FLUJO OBLIGATORIO DE MLFLOW.
+        
+        ⚠️ CORRECTIVO MLOps: Este flujo garantiza que CADA reentrenamiento:
+          1. Use EXACTAMENTE experiment_id = 401576597529460193
+          2. Use EXACTAMENTE artifact_location correcto
+          3. Guarde datos de reentrenamiento como artifacts
+          4. Registre métricas PRE y POST
+          5. Agregue tag "retraining" explícito
         
         Args:
             epochs: Número de épocas
             batch_size: Tamaño del batch
             patience: Early stopping patience
+            experiment_id: ID del experimento MLflow (OBLIGATORIO)
         
         Returns:
             Diccionario con resultados del entrenamiento
         """
+        import mlflow as mlf
+        
+        tracker = None
         try:
-            print(f"\n[ContinuousLearner] Iniciando retrain con {len(self.corrected_samples)} muestras...")
+            print(f"\n" + "="*80)
+            print(f"[ContinuousLearner] INICIANDO REENTRENAMIENTO CON MLFLOW CORRECTO")
+            print(f"[ContinuousLearner] Experiment ID: {experiment_id}")
+            print(f"[ContinuousLearner] Muestras disponibles: {len(self.corrected_samples)}")
+            print(f"="*80)
             
-            # Configurar MLflow correctamente ANTES de YOLO
-            import mlflow
-            mlflow_dir = self.project_root / 'runs' / 'mlflow'
-            mlflow_dir.mkdir(parents=True, exist_ok=True)
-            mlflow.set_tracking_uri(f"file:///{str(mlflow_dir).replace(chr(92), '/')}")
-            print(f"[ContinuousLearner] MLflow configurado correctamente")
+            # =====================================================================
+            # PASO 1: IMPORTAR Y CONFIGURAR MLFLOW CON EXPERIMENT_ID OBLIGATORIO
+            # =====================================================================
+            from mlflow_utils import setup_mlflow
+            print(f"\n[ContinuousLearner] ✓ Importando setup_mlflow...")
+
+            tracker = setup_mlflow(self.project_root, experiment_id=experiment_id)
+            print(f"[ContinuousLearner] ✓ Tracker configurado CON experiment_id={experiment_id}")
             
-            # Desactivar autologging de MLflow
-            mlflow.autolog(disable=True)
-            print(f"[ContinuousLearner] MLflow autolog desactivado")
-            
-            # Preparar dataset
+            # =====================================================================
+            # PASO 2: PREPARAR DATASET DE REENTRENAMIENTO
+            # =====================================================================
             retrain_dir, num_samples = self.prepare_retraining_dataset()
-            print(f"[ContinuousLearner] Dataset preparado: {num_samples} muestras en {retrain_dir}")
+            print(f"[ContinuousLearner] ✓ Dataset preparado: {num_samples} muestras")
+            print(f"[ContinuousLearner]   Ubicación: {retrain_dir}")
             
             if num_samples < 5:
                 logger.warning("Muestras insuficientes para reentrenar")
+                print(f"[ContinuousLearner] ⚠️ ABORTO: {num_samples} < 5 muestras requeridas")
                 return {'success': False, 'reason': 'Muestras insuficientes'}
             
             # Crear data.yaml para YOLO
@@ -314,64 +332,213 @@ class ContinuousLearner:
             yaml_path = retrain_dir / 'data.yaml'
             with open(yaml_path, 'w') as f:
                 yaml.dump(data_yaml, f)
-            print(f"[ContinuousLearner] data.yaml creado: {yaml_path}")
+            print(f"[ContinuousLearner] ✓ data.yaml creado")
             
+            # =====================================================================
+            # PASO 3: INICIAR RUN DE MLFLOW CON TAGS OBLIGATORIOS
+            # =====================================================================
+            run_name = f"continuous_retrain_v{self.current_version}"
+            tags = {
+                "type": "retraining",  # TAG OBLIGATORIO
+                "model_type": "continuous_learning",
+                "version": f"v{self.current_version}",
+                "num_corrections": str(len(self.corrected_samples)),
+                "training_type": "incremental_retrain",
+                "experiment_id": experiment_id  # Rastrear ID del experimento
+            }
+            
+            tracker.start_run(run_name=run_name, tags=tags)
+            print(f"[ContinuousLearner] ✓ MLflow run iniciado: {run_name}")
+            print(f"[ContinuousLearner]   Tags: {tags}")
+            
+            # =====================================================================
+            # PASO 4: REGISTRAR PARÁMETROS DE REENTRENAMIENTO
+            # =====================================================================
+            training_params = {
+                'epochs': epochs,
+                'batch_size': batch_size,
+                'patience': patience,
+                'device': '0' if self._has_gpu() else 'cpu',
+                'num_corrections': len(self.corrected_samples),
+                'num_training_samples': num_samples,
+                'model_version': f"v{self.current_version}",
+                'base_model': str(self.base_model_path),
+                'optimizer': 'auto',
+                'image_size': 640
+            }
+            base_name = self.base_model_path.name.lower()
+            model_name = 'yolov8s' if 'v8s' in base_name or 'improved' in base_name else 'yolov8n'
+            tracker.log_training_params(
+                model_name=model_name,
+                num_classes=3,
+                class_names=['person', 'car', 'dog'],
+                config=training_params
+            )
+            print(f"[ContinuousLearner] ✓ Parámetros registrados en MLflow")
+            
+            # =====================================================================
+            # PASO 5: REGISTRAR DATASET Y CORRECCIONES COMO ARTIFACTS (OBLIGATORIO)
+            # =====================================================================
+            tracker.log_retraining_dataset(retrain_dir, self.corrected_samples)
+            print(f"[ContinuousLearner] ✓ Dataset y correcciones guardados en MLflow")
+            
+            # =====================================================================
+            # PASO 6: EJECUTAR ENTRENAMIENTO (SIN desactivar MLflow)
+            # =====================================================================
             logger.info(f"Iniciando reentrenamiento (épocas={epochs}, batch={batch_size})")
             print(f"[ContinuousLearner] Ejecutando model.train()...")
             
-            # Reentrenar modelo SIN MLflow
-            results = self.base_model.train(
-                data=str(yaml_path),
-                epochs=epochs,
-                batch=batch_size,
-                patience=patience,
-                device=0 if self._has_gpu() else 'cpu',
-                verbose=False,
-                save=True,
-                project=str(self.project_root / 'runs' / 'train'),  # Path local simple
-                name=f"retrain_v{self.current_version}",
-                exist_ok=True  # Overwrite previous runs
-            )
+            # IMPORTANTE: NO deshabilitar MLflow env vars
+            # Mantener tracking URI consistente durante el entrenamiento
+            current_tracking_uri = mlf.get_tracking_uri()
             
-            print(f"[ContinuousLearner] Entrenamiento completado")
+            # CRÍTICO: Deshabilitar Ultralytics MLflow callback para evitar conflictos
+            # Estamos manejando MLflow manualmente, no queremos que Ultralytics interfiera
+            from ultralytics import settings
+            original_mlflow_setting = settings.get('mlflow', True)
+            settings.update({'mlflow': False})  # Deshabilitar MLflow automático de Ultralytics
+            print(f"[ContinuousLearner] ✓ MLflow callback de Ultralytics deshabilitado (manejamos manualmente)")
             
-            # Evaluar en dataset de validación
-            print(f"[ContinuousLearner] Evaluando modelo...")
+            try:
+                # Reentrenar modelo
+                results = self.base_model.train(
+                    data=str(yaml_path),
+                    epochs=epochs,
+                    batch=batch_size,
+                    patience=patience,
+                    device=0 if self._has_gpu() else 'cpu',
+                    verbose=False,
+                    save=True,
+                    project=str(self.project_root / 'runs' / 'train'),
+                    name=f"retrain_v{self.current_version}",
+                    exist_ok=True
+                )
+            finally:
+                # Restaurar setting original
+                settings.update({'mlflow': original_mlflow_setting})
+            
+            print(f"[ContinuousLearner] ✓ Entrenamiento completado")
+            
+            # =====================================================================
+            # PASO 7: REGISTRAR MÉTRICAS DE ENTRENAMIENTO
+            # =====================================================================
+            training_output_dir = self.project_root / 'runs' / 'train' / f"retrain_v{self.current_version}"
+            if results and hasattr(results, 'results_dict'):
+                # Crear objeto simple con métricas para logging
+                class MetricsHolder:
+                    def __init__(self, results_dict):
+                        self.results_dict = results_dict
+                        # Extraer métricas de box si existen
+                        if 'metrics/mAP50(B)' in results_dict:
+                            self.box = type('obj', (object,), {
+                                'map50': results_dict.get('metrics/mAP50(B)', 0),
+                                'map': results_dict.get('metrics/mAP50-95(B)', 0),
+                                'mp': results_dict.get('metrics/precision(B)', 0),
+                                'mr': results_dict.get('metrics/recall(B)', 0)
+                            })()
+                
+                metrics_obj = MetricsHolder(results.results_dict)
+                tracker.log_metrics_from_yolo(metrics_obj)
+                print(f"[ContinuousLearner] ✓ Métricas de entrenamiento registradas")
+            else:
+                print(f"[ContinuousLearner] ⚠ No se encontraron métricas en results")
+            
+            # =====================================================================
+            # PASO 8: EVALUAR Y REGISTRAR MÉTRICAS DE VALIDACIÓN
+            # =====================================================================
+            print(f"[ContinuousLearner] Evaluando modelo en dataset de validación...")
             metrics = self.base_model.val()
             
-            # Guardar modelo en la carpeta models/
+            if hasattr(metrics, 'box'):
+                validation_metrics = {
+                    'val_mAP50': float(metrics.box.map50),
+                    'val_mAP50_95': float(metrics.box.map),
+                    'val_precision': float(metrics.box.mp),
+                    'val_recall': float(metrics.box.mr)
+                }
+                tracker.log_metrics(validation_metrics, step=epochs)
+                print(f"[ContinuousLearner] ✓ Métricas de validación registradas")
+                print(f"[ContinuousLearner]   mAP50: {validation_metrics['val_mAP50']:.4f}")
+                print(f"[ContinuousLearner]   Precision: {validation_metrics['val_precision']:.4f}")
+                print(f"[ContinuousLearner]   Recall: {validation_metrics['val_recall']:.4f}")
+            
+            # =====================================================================
+            # PASO 9: COPIAR MODELO A DIRECTORIO models/ Y GUARDAR COMO ARTIFACT
+            # =====================================================================
             improved_model_path = self.models_dir / f"retrained_v{self.current_version}.pt"
             print(f"[ContinuousLearner] Guardando modelo en: {improved_model_path}")
             
-            # El último best.pt generado por YOLO está en runs/train/retrain_vX/weights/best.pt
-            # Copiar ese archivo a models/retrained_vX.pt
             import shutil
-            training_output_dir = self.project_root / 'runs' / 'train' / f"retrain_v{self.current_version}"
             best_model_from_training = training_output_dir / 'weights' / 'best.pt'
             
             if best_model_from_training.exists():
-                print(f"[ContinuousLearner] Modelo entrenado encontrado en: {best_model_from_training}")
                 shutil.copy2(best_model_from_training, improved_model_path)
-                print(f"[ContinuousLearner] Modelo copiado a: {improved_model_path}")
+                print(f"[ContinuousLearner] ✓ Modelo copiado exitosamente")
             else:
-                print(f"[ContinuousLearner] Buscando modelo en directorio de entrenamiento...")
-                # Buscar cualquier best.pt en el directorio
+                # Buscar best.pt recursivamente
+                found = False
                 for best_file in training_output_dir.rglob('best.pt'):
-                    print(f"[ContinuousLearner] Encontrado: {best_file}")
                     shutil.copy2(best_file, improved_model_path)
+                    found = True
                     break
+                if not found:
+                    print(f"[ContinuousLearner] ❌ ERROR: No se pudo encontrar best.pt")
+                    tracker.end_run(status='FAILED')
+                    return {'success': False, 'error': 'Modelo entrenado no encontrado'}
             
             # Verificar que el archivo se guardó
             if improved_model_path.exists():
                 size_mb = improved_model_path.stat().st_size / 1024 / 1024
-                print(f"[ContinuousLearner] Archivo guardado exitosamente. Tamaño: {size_mb:.2f} MB")
+                print(f"[ContinuousLearner] ✓ Archivo guardado en models/: {size_mb:.2f} MB")
+                
+                # GUARDAR COPIA ADICIONAL EN runs/train/ PARA ACCESO DIRECTO
+                runs_train_model = self.project_root / 'runs' / 'train' / f"retrained_v{self.current_version}.pt"
+                shutil.copy2(improved_model_path, runs_train_model)
+                print(f"[ContinuousLearner] ✓ Modelo copiado también a runs/train/retrained_v{self.current_version}.pt")
             else:
-                print(f"[ContinuousLearner] ERROR: Archivo no se guardó correctamente")
-                return {'success': False, 'error': 'No se pudo guardar el modelo', 'reason': 'Model save failed'}
+                print(f"[ContinuousLearner] ❌ ERROR: Archivo no se guardó")
+                tracker.end_run(status='FAILED')
+                return {'success': False, 'error': 'No se pudo guardar el modelo'}
             
+            # =====================================================================
+            # PASO 10: REGISTRAR ARTEFACTOS FINALES EN MLFLOW
+            # =====================================================================
+            print(f"\n[ContinuousLearner] REGISTRANDO ARTEFACTOS FINALES EN MLFLOW")
+            print(f"[ContinuousLearner] " + "="*70)
+            
+            tracker.log_training_artifacts(
+                yolo_run_dir=training_output_dir,
+                final_model_path=improved_model_path
+            )
+            
+            print(f"[ContinuousLearner] ✓ ARTEFACTOS REGISTRADOS EXITOSAMENTE")
+            print(f"[ContinuousLearner] " + "="*70)
+            
+            # =====================================================================
+            # PASO 11: REGISTRAR VERSIÓN DEL MODELO
+            # =====================================================================
+            trained_version = self.current_version
+            version_info = {
+                'version': f"v{trained_version}",
+                'model_type': 'yolov8n',
+                'training_type': 'continuous_learning',
+                'base_model': str(self.base_model_path),
+                'num_corrections': len(self.corrected_samples),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            tracker.log_model_version(
+                model_path=improved_model_path,
+                version_type='retraining',
+                metadata=version_info
+            )
+            print(f"[ContinuousLearner] ✓ Modelo versionado exitosamente")
+            
+            # =====================================================================
+            # PASO 12: FINALIZAR RUN DE MLFLOW
+            # =====================================================================
             # Actualizar estadísticas
-            trained_version = self.current_version  # Guardar la versión que se acaba de entrenar
-            self.current_version += 1  # Incrementar para el próximo entrenamiento
+            self.current_version += 1
             self.stats['total_retrains'] += 1
             self.stats['current_version'] = self.current_version
             self.stats['last_retrain'] = datetime.now().isoformat()
@@ -380,25 +547,44 @@ class ContinuousLearner:
                 'mAP50-95': float(metrics.box.map) if hasattr(metrics, 'box') else 0
             }
             
-            logger.info(f"Reentrenamiento completado. Modelo guardado: {improved_model_path}")
-            logger.info(f"Próxima versión para reentrenamiento: v{self.current_version}")
-            print(f"[ContinuousLearner] Retrain v{trained_version} completado exitosamente!")
-            print(f"[ContinuousLearner] Próxima versión será: v{self.current_version}")
+            # Finalizar run EXPLÍCITAMENTE
+            tracker.end_run(status='FINISHED')
+            print(f"[ContinuousLearner] ✓ MLflow run finalizado correctamente")
+            
+            logger.info(f"Reentrenamiento completado exitosamente")
+            logger.info(f"Modelo: {improved_model_path}")
+            logger.info(f"Próxima versión: v{self.current_version}")
+            
+            print(f"\n" + "="*80)
+            print(f"[ContinuousLearner] ✅ REENTRENAMIENTO EXITOSO v{trained_version}")
+            print(f"[ContinuousLearner] Próxima versión: v{self.current_version}")
+            print(f"="*80 + "\n")
             
             return {
                 'success': True,
                 'model_path': str(improved_model_path),
                 'version': trained_version,
-                'metrics': self.stats['model_performance']
+                'metrics': self.stats['model_performance'],
+                'mlflow_run_id': tracker.run_id if tracker.run_id else None,
+                'experiment_id': experiment_id
             }
             
         except Exception as e:
-            logger.error(f"Error durante reentrenamiento: {e}")
+            logger.error(f"❌ Error durante reentrenamiento: {e}")
             import traceback
             error_traceback = traceback.format_exc()
             traceback.print_exc()
-            print(f"[ContinuousLearner] ERROR: {e}")
+            print(f"\n[ContinuousLearner] ❌ ERROR: {e}")
             print(f"[ContinuousLearner] Traceback:\n{error_traceback}")
+            
+            # Finalizar run de MLflow con estado FAILED
+            try:
+                if tracker:
+                    tracker.end_run(status='FAILED')
+                    print(f"[ContinuousLearner] MLflow run marcado como FAILED")
+            except:
+                pass
+            
             return {'success': False, 'error': str(e), 'reason': 'Retraining failed'}
     
     def _has_gpu(self) -> bool:

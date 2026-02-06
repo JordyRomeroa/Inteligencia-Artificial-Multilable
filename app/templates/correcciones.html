@@ -723,18 +723,43 @@
                         <strong>¡Reentrenamiento completado exitosamente!</strong><br>
                         <p>El modelo ha sido actualizado y mejorado con tus correcciones.</p>
                         <p style="font-family: monospace; background: #f0f0ff; padding: 10px; border-radius: 4px; margin-top: 10px;">
-                            📁 ${data.message}
+                            📁 ${data.model_path || 'Modelo guardado correctamente'}
                         </p>
                         <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
-                            El nuevo modelo está disponible en el selector de la pestaña Predicción
+                            Cargando el nuevo modelo automáticamente...
                         </p>
                     </div>`;
                     msgEl.className = 'message show success';
                     
-                    // Recargar lista de modelos
+                    // Recargar lista de modelos y cambiar al nuevo modelo automáticamente
                     setTimeout(() => {
                         loadModels();
                         loadStats();
+                        
+                        // Si se devolvió el path del modelo, cambiar automáticamente
+                        if (data.model_path) {
+                            fetch('/api/models/switch', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ model_path: data.model_path })
+                            })
+                            .then(res => res.json())
+                            .then(switchData => {
+                                if (switchData.success) {
+                                    const statusEl = document.getElementById('modelStatus');
+                                    if (statusEl) {
+                                        statusEl.textContent = `✓ Modelo actualizado: ${switchData.message}`;
+                                        statusEl.style.color = '#27ae60';
+                                    }
+                                    msgEl.innerHTML += `<p style="color: #27ae60; margin-top: 10px;">✓ Nuevo modelo cargado y listo para usar</p>`;
+                                }
+                                // Actualizar select después del cambio
+                                loadModels();
+                            })
+                            .catch(err => {
+                                console.error('Error al cambiar modelo:', err);
+                            });
+                        }
                     }, 1000);
                 } else {
                     msgEl.textContent = 'Error: ' + data.error;

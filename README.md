@@ -1,284 +1,159 @@
-# YOLO Object Detection – 3-Class Production Pipeline
+# YOLO 3-Class Object Detection with MLflow
 
-## 📌 Overview
+YOLOv8 detection system for **Person, Car, Dog** with complete MLflow experiment tracking and model registry.
 
-This project implements a **production-ready object detection system** using **YOLOv8**, focused on detecting **three specific classes**:
+## Stack
 
-- 🧍 Person  
-- 🚗 Car  
-- 🐶 Dog  
+- **YOLOv8** (Ultralytics) - Transfer learning from COCO
+- **MLflow** - Experiment tracking + Model Registry
+- **Pascal VOC 2012** - Dataset (person, car, dog classes)
+- **Flask** - REST API inference
+- **PyTorch** (CUDA 12.1)
 
-The pipeline covers the **entire machine learning lifecycle**, from dataset validation and exploratory data analysis (EDA) to model training, experiment tracking with **MLflow**, and deployment through a **REST inference API**.
+## Structure
 
-The system is designed with **reproducibility, scalability, and production-readiness** in mind.
-
----
-
-## 🎯 Objective
-
-Build a robust YOLO-based object detection pipeline that:
-
-- Detects 3 predefined object classes
-- Uses transfer learning from YOLOv8 pre-trained weights
-- Tracks experiments and models using MLflow
-- Exposes the trained model via a REST API
-- Ensures reproducibility across runs
-
----
-
-## 🚀 Key Features
-
-- YOLOv8 object detection (Ultralytics)
-- 3-class specialization (person, car, dog)
-- Transfer learning from COCO-pretrained YOLOv8n
-- Integrated MLflow experiment tracking
-- Model Registry with production-ready versions
-- REST API for inference (Flask)
-- Deterministic training (fixed random seed)
-
----
-
-## 🧠 Technical Stack
-
-- Ultralytics YOLOv8  
-- PyTorch  
-- MLflow 2.0+ (SQLite backend)  
-- Flask (Inference API)  
-- Python 3.9+  
-
----
-
-## 📊 Dataset Description
-
-- **Format:** YOLO bounding box format (`.txt`)
-- **Classes:** 3 (`person`, `car`, `dog`)
-- **Image Size:** 416 × 416 (RGB)
-- **Total Images:** 500
-- **Split:**
-  - Train: 400 images (80%)
-  - Validation: 50 images (10%)
-  - Test: 50 images (10%)
-
-The dataset follows the standard YOLO directory structure.
-
----
-
-## 🔍 Exploratory Data Analysis (EDA)
-
-Before training, the dataset is validated and analyzed to ensure data quality and consistency.
-
-### EDA includes:
-- Image–label alignment verification
-- Bounding box format and normalization checks
-- Class distribution analysis
-- Detection of missing or corrupted labels
-- Visualization of sample images with bounding boxes
-- Dataset balance validation
-
-This step ensures that training performance is not affected by data-related issues.
-
----
-
-## 📓 Notebooks Explanation
-
-### `01_dataset_validation.ipynb`
-**Purpose:** Dataset sanity checks & EDA
-
-This notebook performs:
-- Dataset structure validation
-- YOLO label format verification
-- Bounding box normalization checks
-- Class frequency analysis
-- Visualization of labeled samples
-- Detection of empty or invalid annotations
-
-**Outcome:** A clean and verified dataset ready for training.
-
----
-
-### `02_train_yolo.ipynb`
-**Purpose:** Model training & experiment tracking
-
-This notebook handles:
-- YOLOv8n model initialization
-- Transfer learning from COCO pre-trained weights
-- Training configuration (epochs, batch size, image size)
-- Automatic logging of metrics, parameters, and artifacts with MLflow
-- Model registration in the MLflow Model Registry
-
-**Outcome:** A trained and versioned object detection model.
-
----
-
-### `03_inference.ipynb`
-**Purpose:** Model inference & qualitative evaluation
-
-This notebook:
-- Loads the trained YOLOv8 model
-- Runs inference on validation and test images
-- Applies confidence and IoU thresholds
-- Visualizes predictions vs ground truth
-- Evaluates real-world detection behavior
-
-**Outcome:** Validation of model performance before deployment.
-
----
-
-##  Installation
-
-```bash
-pip install -r requirements.txt
 ```
-
-Requirements
-
-    Python 3.9+
-
-    CUDA 11.8+ (optional, GPU acceleration)
-
-    8 GB RAM (minimum)
-
-    10 GB free storage
-
- ## Training Pipeline
-
-    Prepare Dataset
-
-python prepare_dataset.py
-
-    Dataset Validation & EDA
-
-jupyter notebook notebooks/01_dataset_validation.ipynb
-
-    Model Training
-
-jupyter notebook notebooks/02_train_yolo.ipynb
-
-    Inference Testing
-
-jupyter notebook notebooks/03_inference.ipynb
-
- MLflow Tracking
-
-Launch the MLflow UI:
-
-mlflow ui --backend-store-uri file:///mlruns
-
-## MLflow Setup
-
-    Backend: SQLite
-
-    Experiment: yolo_3class_detection
-
-    Registered Model: yolo_3class_detector
-
-    Stages: Staging → Production
-
- Inference API
-
-Start the API:
-
-python app/inference_api.py
-
-API Endpoints
-Method	Endpoint	Description
-GET	/health	API health check
-GET	/model-info	Loaded model metadata
-POST	/predict	Image upload for object detection
-Test API
-
-python test_inference_api.py
-
-## Model Information
-
-    Architecture: YOLOv8n
-
-    Input Size: 416 × 416
-
-    Classes: person, car, dog
-
-    Epochs: 50
-
-    Batch Size: 16
-
-    Loss Function: YOLOv8 default
-
-    Optimizer & LR: YOLOv8 auto scheduler
-
-    Random Seed: 42
-
-## Metrics
-
-    mAP@0.5
-
-    mAP@0.5:0.95
-
-    Precision
-
-    Recall
-
-## Evaluation Setup
-
-    Validation Set: 50 images
-
-    Test Set: 50 images
-
-    Confidence Threshold: 0.5
-
-    IoU Threshold: 0.45
-
-## Project Structure
-
-.
-├── data/
-│   ├── data.yaml
-│   ├── images/
-│   │   ├── train/
-│   │   ├── val/
-│   │   └── test/
-│   └── labels/
-├── notebooks/
+iajordy2/
+├── notebooks/              # Complete ML pipeline
 │   ├── 01_dataset_validation.ipynb
 │   ├── 02_train_yolo.ipynb
-│   └── 03_inference.ipynb
-├── models/
-│   └── yolo_run/
-│       └── weights/
-│           └── best.pt
-├── app/
-│   └── inference_api.py
-├── prepare_dataset.py
-├── test_inference_api.py
-└── README.md
+│   ├── 03_training.ipynb         # Main training + MLflow
+│   ├── 04_prediction.ipynb
+│   └── 05_retrain_improved.ipynb # Optimized (dog focus)
+├── app/                    # Flask API
+│   ├── mlflow_utils.py           # MLflowYOLOTracker
+│   ├── api.py / inference_api.py
+│   ├── run_server.py             # Start API server
+│   └── templates/ static/
+├── data/
+│   ├── VOCdevkit/                # Original dataset
+│   ├── data.yaml                 # YOLO config
+│   ├── images/                   # train/val/test
+│   └── labels/                   # YOLO format
+├── models/                 # Trained models (.pt)
+├── runs/mlflow/            # MLflow backend
+└── requirements.txt
+```
 
-##  Reproducibility
+## Setup
 
-    Fixed random seed (SEED = 42)
+**Requirements**: Python 3.9+, CUDA 12.1, 8GB RAM
 
-    Deterministic dataset split (80/10/10)
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python prepare_dataset.py
+```
 
-    YOLOv8 deterministic behavior
+## Training
 
-    Full experiment tracking with MLflow
+**Standard Training (Notebook 03)**
+```bash
+# Run cells: Cell 2 → Cell 4 → Cell 6 → Cell 8
+# Output: models/best.pt
+# MLflow experiment: yolo_3class_detection
+```
 
-##  Production Deployment Notes
+**Optimized Training (Notebook 05)**  
+```bash
+# Run cells: Cell 2 → Cell 5 → Cell 16 → Cell 17 → Cell 19
+# Output: models/best_improved.pt + MLflow Model Registry
+# Optimizations: copy-paste aug, mixup, NMS tuning for dog groups
+# MLflow experiment: yolo_improved_training
+```
 
-    API Framework: Flask (WSGI)
+### Model Path Convention
 
-    Default Port: 5000
+All notebooks use **single-path convention**:
 
-    Model Format: PyTorch .pt
+- **Base model**: `models/best.pt` (notebooks 02, 03, 04)
+- **Improved model**: `models/best_improved.pt` (notebook 05)
+- **MLflow artifacts**: logged to `artifact_path='model'` (singular)
 
-    Inference Time:
+## MLflow
 
-        GPU: ~50–100 ms per image
+**Start UI**
+```bash
+python -m mlflow ui --backend-store-uri "file:///C:/Users/jordy/OneDrive/Desktop/iaaaa/iajordy2/runs/mlflow" --port 5001
+```
+→ http://localhost:5001
 
-        CPU: ~200–500 ms per image
+**Tracked Metrics**: mAP50, mAP50-95, precision, recall, per-class AP  
+**Artifacts**: model, training curves, confusion matrix, predictions  
+**Model Registry**: Registered models via `mlflow.register_model()`
 
-##  Project Status
+**MLflowYOLOTracker** (app/mlflow_utils.py)  
+- `setup_mlflow()` - Initialize backend + experiment  
+- `log_training_params()` - Log YOLO config  
+- `log_metrics_from_yolo()` - Parse results.csv  
+- `log_training_artifacts()` - Log model to artifact_path='model'
 
-✔ Dataset validated
-✔ Model trained and evaluated
-✔ Experiments tracked
-✔ Model registered
-✔ API deployed
+## API Endpoints
+
+**Start server** (after training model)
+```bash
+cd app
+python run_server.py
+```
+→ http://localhost:5000
+
+**POST /predict** - Upload image, get detections  
+**POST /api/model/retrain** - Trigger manual retraining  
+**GET /api/model/info** - Current model version + metrics
+
+## Training Config
+
+**Standard (Notebook 03)**
+- YOLOv8n, 50 epochs, batch=16, img=640
+- Optimizer: AdamW (lr=0.001)
+- Augmentation: hsv, degrees, translate, scale
+
+**Optimized (Notebook 05)**  
+- YOLOv8s, 100 epochs, batch=8, img=640
+- Optimizer: AdamW (lr=0.001)
+- Advanced aug: copy-paste=0.3, mixup=0.15
+- NMS: IoU=0.5, conf=0.15
+- Target: Dog AP50 → 0.65+ (from 0.468)
+
+## Expected Performance
+
+- **Overall mAP50**: 0.70+
+- **Person AP50**: 0.85+
+- **Car AP50**: 0.75+
+- **Dog AP50**: 0.65+ (optimized for multi-object groups)
+
+## Workflow
+
+1. **Dataset validation**: Run [01_dataset_validation.ipynb](notebooks/01_dataset_validation.ipynb)
+2. **Initial training**: Execute [03_training.ipynb](notebooks/03_training.ipynb)
+3. **Optimization**: Use [05_retrain_improved.ipynb](notebooks/05_retrain_improved.ipynb)
+4. **Deployment**: Start API with `run_server.py`
+5. **Monitoring**: View MLflow UI for experiment comparison
+
+## Troubleshooting
+
+**CUDA OOM**: Reduce batch_size or use YOLOv8n  
+**MLflow UI fails**: Check backend path `runs/mlflow/` exists  
+**Model not found**: Verify `models/best.pt` after training  
+**Low accuracy**: Increase epochs (100+), enable copy-paste/mixup
+
+## Technical Notes
+
+- YOLO outputs: `runs/train/` (training), `runs/detect/` (validation)
+- MLflow backend: File-based store at `runs/mlflow/`
+- Model Registry: All models registered with version control
+- Deterministic mode enabled for reproducibility
+- Auto GPU detection if CUDA available
+
+## Requirements
+
+- **OS**: Windows 10/11, Linux, macOS
+- **GPU**: NVIDIA 4GB+ VRAM (RTX 3080 recommended)
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 10GB for dataset + models
+- **Python**: 3.9+
+
+---
+
+**License**: MIT
