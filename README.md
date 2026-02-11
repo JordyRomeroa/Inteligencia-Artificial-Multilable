@@ -204,8 +204,3 @@ Target metrics based on validation set evaluation:
 
 ---
 
-**License**: MIT
-
-```
-
-```
