@@ -1,4 +1,4 @@
-Aquí tienes el archivo completo en un único bloque de código para que puedas copiarlo y pegarlo directamente en tu `README.md`.
+
 
 ```md
 # YOLO 3-Class Object Detection with MLflow
